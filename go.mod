@@ -40,7 +40,7 @@ require (
 	github.com/thecodeteam/goisilon v1.7.0
 	github.com/thecodeteam/goscaleio v0.1.1-0.20171027002729-35ca2e98889a
 	golang.org/x/crypto v0.52.0
-	golang.org/x/net v0.54.0
+	golang.org/x/net v0.55.0
 	golang.org/x/oauth2 v0.34.0
 	google.golang.org/api v0.235.0
 	google.golang.org/grpc v1.79.3
