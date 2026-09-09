@@ -39,11 +39,11 @@ require (
 	github.com/thecodeteam/goioc v0.2.0
 	github.com/thecodeteam/goisilon v1.7.0
 	github.com/thecodeteam/goscaleio v0.1.1-0.20171027002729-35ca2e98889a
-	golang.org/x/crypto v0.52.0
-	golang.org/x/net v0.55.0
+	golang.org/x/crypto v0.55.0
+	golang.org/x/net v0.58.0
 	golang.org/x/oauth2 v0.36.0
 	google.golang.org/api v0.264.0
-	google.golang.org/grpc v1.83.1
+	google.golang.org/grpc v1.83.2
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -101,9 +101,9 @@ require (
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/term v0.43.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/term v0.45.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/grpc/examples v0.0.0-20250626193611-dd718e42f445 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
