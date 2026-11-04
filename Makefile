@@ -300,8 +300,8 @@ $(DOCKER_PLUGIN_ENTRYPOINT_ROOTFS_TGT): $(DOCKER_PLUGIN_CONFIGJSON_TGT) \
 	docker plugin rm $(DOCKER_PLUGIN_NAME) 2> /dev/null || true
 	sudo rm -fr $(@D)
 	docker build \
-	  --label `driver="$(DRIVER)"` \
-	  --label `semver="$(SEMVER)"` \
+	  --label "driver=$(DRIVER)" \
+	  --label "semver=$(SEMVER)" \
 	  -t rootfsimage $(<D) && \
 	  id=$$(docker create rootfsimage true) && \
 	  sudo mkdir -p $(@D) && \

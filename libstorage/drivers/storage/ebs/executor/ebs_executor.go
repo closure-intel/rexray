@@ -160,6 +160,22 @@ func fileExists(filePath string) (bool, error) {
 	return false, err
 }
 
+// nvmeDevicePath resolves both boot-time and hot-attached EBS device names.
+// An empty result means the controller data is incomplete or outside the
+// configured EBS device namespace.
+func nvmeDevicePath(controller []byte, deviceRE *regexp.Regexp) string {
+	const deviceNameOffset, deviceNameEnd = 3072, 3104
+	if len(controller) < deviceNameEnd {
+		return ""
+	}
+	name := strings.Trim(string(controller[deviceNameOffset:deviceNameEnd]), " \t\r\n\x00")
+	name = strings.TrimPrefix(name, "/dev/")
+	if !deviceRE.MatchString(name) {
+		return ""
+	}
+	return path.Join("/dev", name)
+}
+
 // Retrieve device paths currently attached and/or mounted
 func (d *driver) LocalDevices(
 	ctx types.Context,
@@ -194,11 +210,7 @@ func (d *driver) LocalDevices(
 				"id-ctrl",
 				"--raw-binary", devPath).Output(); err == nil {
 
-				// read the binary output slice and trim it
-				dev := strings.TrimSpace(string(out[3072:3104]))
-
-				// if the result contains a /dev/ then we got a match
-				if strings.Contains(dev, "/dev/") {
+				if dev := nvmeDevicePath(out, ns.DeviceRE); dev != "" {
 					ctx.WithFields(map[string]interface{}{
 						"deviceName": devName,
 						"device":     dev,
@@ -211,7 +223,7 @@ func (d *driver) LocalDevices(
 							return nil, err
 						}
 					} else {
-						devName = strings.TrimLeft(dev, "/dev/")
+						devName = strings.TrimPrefix(dev, "/dev/")
 						devPath = dev
 					}
 				}
