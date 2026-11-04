@@ -8,149 +8,86 @@ on:
     tags: [v*.*.*]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   DOCKER: 0
   PROG: rexray
+  CGO_ENABLED: 0
 
 jobs:
-  build:
-    if: false
+  test:
     runs-on: ubuntu-latest
-    env:
-      DRIVER: ${{ matrix.driver }}
-      GOARCH: ${{ matrix.arch }}
-      GOOS: ${{ matrix.os }}
-      XGOARCH: ${{ matrix.arch }}
-      XGOOS: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        go-version: [1.24]
-        os: [linux]
-        arch: [amd64, arm, arm64]
-        driver:
-        - ""
-        - azureud
-        - cinder
-        - csi-nfs
-        - dobs
-        - ebs
-        - efs
-        - gcepd
-        - isilon
-        - rbd
-        - s3fs
-        - scaleio
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
+        go-version-file: go.mod
         check-latest: true
-        go-version: ${{ matrix.go-version }}
-
-    - name: Build
-      run: |
-        make
-        md5sum $PROG
-        ls -al $PROG
-        file $PROG
-        [[ "$GOARCH" == "amd64" ]] && ./$PROG version
+    - name: Test EBS discovery
+      run: go test -race ./libstorage/drivers/storage/ebs/executor ./libstorage/drivers/storage/ebs/utils
+      env:
+        CGO_ENABLED: 1
 
   docker-plugin:
+    needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     env:
-      DOCKER_PLUGIN_ROOT: "ghcr.io/${{ github.repository }}"
+      DOCKER_PLUGIN_ROOT: ghcr.io/${{ github.repository }}
       DRIVER: ${{ matrix.driver }}
-      GOARCH: ${{ matrix.arch }}
-      GOOS: ${{ matrix.os }}
-      XGOARCH: ${{ matrix.arch }}
-      XGOOS: ${{ matrix.os }}
+      GOARCH: amd64
+      GOOS: linux
+      XGOARCH: amd64
+      XGOOS: linux
     strategy:
       fail-fast: false
       matrix:
-        go-version: [1.24]
-        os: [linux]
-        arch: [amd64]
-        driver:
-        #- azureud
-        #- cinder
-        #- csi-nfs
-        #- dobs
-        - ebs
-        - efs
-        #- gcepd
-        #- isilon
-        #- rbd
-        - s3fs
-        #- scaleio
+        driver: [ebs, efs, s3fs]
     steps:
     - name: Checkout
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+        check-latest: true
+    - name: Set plugin version
+      run: |
+        if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          echo "PLUGIN_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+        else
+          echo "PLUGIN_VERSION=sha-${GITHUB_SHA}" >> "$GITHUB_ENV"
+        fi
+    - name: Build
+      run: |
+        make
+        ./rexray version
+    - name: Build Docker Plugin
+      run: make build-docker-plugin SEMVER="$PLUGIN_VERSION"
+    - name: Verify packaged binary
+      run: |
+        sudo chroot ".docker/plugins/$DRIVER/rootfs" /usr/bin/rexray version
+        docker plugin inspect "$DOCKER_PLUGIN_ROOT/$DRIVER:$PLUGIN_VERSION"
+        if [[ "$DRIVER" == ebs ]]; then
+          sudo chroot .docker/plugins/ebs/rootfs /usr/sbin/nvme version
+        fi
     - name: Log into ghcr.io registry
+      if: github.event_name != 'pull_request'
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        check-latest: true
-        go-version: ${{ matrix.go-version }}
-
-    - name: Build
-      run: |
-        make
-        md5sum $PROG
-        ls -al $PROG
-        file $PROG
-        [[ "$GOARCH" == "amd64" ]] && ./$PROG version
-
-    - name: Build Docker Plugin
-      run: make build-docker-plugin
-
     - name: Push Docker Plugin
-      env:
-        DOCKER_PLUGIN_TYPE: ${{ github.event_name != 'pull_request' && 'staged' || 'unstable' }}
-      run: make push-docker-plugin
-
-    - name: Add Latest Tag
       if: github.event_name != 'pull_request'
       run: |
-        go install github.com/google/go-containerregistry/cmd/crane@latest
-        source semver.env
-        crane tag "${DOCKER_PLUGIN_ROOT}/${DRIVER}:${SEMVER/+/-}" latest
-
-  test:
-    if: false
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        go-version: [1.24]
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        check-latest: true
-        go-version: ${{ matrix.go-version }}
-
-    - name: Test
-      run: |
-        go run core/semver/semver.go -f json
-        make test
-        make cover
+        make push-docker-plugin SEMVER="$PLUGIN_VERSION"
+        echo "Plugin: $DOCKER_PLUGIN_ROOT/$DRIVER:$PLUGIN_VERSION" >> "$GITHUB_STEP_SUMMARY"
